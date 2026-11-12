@@ -37,6 +37,7 @@ export const KiloModel = z.object({
     .object({
       variants: z
         .record(
+          z.string(),
           z.object({
             reasoning: z
               .object({

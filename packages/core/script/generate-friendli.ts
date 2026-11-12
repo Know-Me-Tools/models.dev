@@ -404,7 +404,7 @@ async function main() {
   const json = await res.json();
   const parsed = FriendliResponse.safeParse(json);
   if (!parsed.success) {
-    console.error("Invalid API response:", parsed.error.errors);
+    console.error("Invalid API response:", parsed.error.issues);
     process.exit(1);
   }
 

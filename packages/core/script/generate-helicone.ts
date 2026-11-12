@@ -193,7 +193,7 @@ async function main() {
   const parsed = HeliconeResponse.safeParse(json);
   if (!parsed.success) {
     parsed.error.cause = json;
-    console.error("Invalid Helicone response:", parsed.error.errors);
+    console.error("Invalid Helicone response:", parsed.error.issues);
     console.error("When parsing:", parsed.error.cause);
     process.exit(1);
   }

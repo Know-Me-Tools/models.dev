@@ -82,7 +82,7 @@ const OllamaModelDetails = z.object({
     parameter_size: z.string().transform(Number),
     quantization_level: z.string(),
   }),
-  model_info: z.record(z.union([z.string(), z.number()])),
+  model_info: z.record(z.string(), z.union([z.string(), z.number()])),
   capabilities: z.array(z.enum(["thinking", "completion", "tools", "vision"])),
 });
 
@@ -128,7 +128,7 @@ if (!tagsResponse.ok) {
 const tagsJson = await tagsResponse.json();
 const tagsParsed = OllamaTagsResponse.safeParse(tagsJson);
 if (!tagsParsed.success) {
-  console.error("Invalid tags response:", tagsParsed.error.errors);
+  console.error("Invalid tags response:", tagsParsed.error.issues);
   process.exit(1);
 }
 const tagsData: OllamaTagsResponse = tagsParsed.data;
@@ -156,7 +156,7 @@ for (const modelName of modelNames) {
   if (!showParsed.success) {
     console.error(
       `Invalid response for ${modelName}:`,
-      showParsed.error.errors
+      showParsed.error.issues
     );
     process.exit(1);
   }

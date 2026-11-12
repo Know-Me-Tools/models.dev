@@ -34,12 +34,12 @@ const CatalogEntry = z.object({
   model_id: z.string().refine(isSafeModelID, "model_id must be a safe relative provider/model path"),
   task: z.string(),
   context_length: z.number().int().positive().nullish(),
-  pricing: z.record(z.number().nonnegative()).nullish(),
+  pricing: z.record(z.string(), z.number().nonnegative()).nullish(),
 }).passthrough();
 const CatalogModel = CatalogEntry.extend({
   task: z.literal(TEXT_GENERATION),
   context_length: z.number().int().positive().nullish(),
-  pricing: z.record(z.number().nonnegative()),
+  pricing: z.record(z.string(), z.number().nonnegative()),
 });
 
 const CloudflareResponse = z.object({
@@ -77,7 +77,7 @@ const CuratedModel = z.object({
 
 const Curation = z.object({
   skip: z.array(z.string()).default([]),
-  models: z.record(CuratedModel).default({}),
+  models: z.record(z.string(), CuratedModel).default({}),
 }).strict();
 
 type CatalogModel = z.infer<typeof CatalogModel>;

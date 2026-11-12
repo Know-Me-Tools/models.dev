@@ -56,7 +56,7 @@ export const MergeGatewayModel = z.object({
   model: z.string().min(1),
   provider: z.string().min(1),
   display_name: z.string().min(1),
-  vendors: z.record(VendorInfo),
+  vendors: z.record(z.string(), VendorInfo),
   availability_status: AvailabilityStatus,
   created_at: z.string().nullable().optional(),
   updated_at: z.string().nullable().optional(),

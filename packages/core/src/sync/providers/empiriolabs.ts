@@ -53,7 +53,7 @@ const EmpiriolabsModel = z
     max_output_tokens: z.number().nullable().optional(),
     model_released_at: z.string().nullable().optional(),
     pricing: EmpiriolabsPricing.optional(),
-    capabilities: z.record(z.unknown()).optional(),
+    capabilities: z.record(z.string(), z.unknown()).optional(),
     features: z.array(z.string()).optional(),
     structured_output: z.string().nullable().optional(),
     input_modalities: z.array(z.string()).optional(),

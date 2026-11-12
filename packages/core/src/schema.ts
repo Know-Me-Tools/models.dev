@@ -17,7 +17,7 @@ const JsonValue: z.ZodType<JsonValue> = z.lazy(() =>
     z.boolean(),
     z.null(),
     z.array(JsonValue),
-    z.record(JsonValue),
+    z.record(z.string(), JsonValue),
   ]),
 );
 
@@ -275,13 +275,14 @@ const ModelBase = z.object({
     .object({
       modes: z
         .record(
+          z.string(),
           z
             .object({
               cost: Cost.optional(),
               provider: z
                 .object({
-                  body: z.record(JsonValue).optional(),
-                  headers: z.record(z.string()).optional(),
+                  body: z.record(z.string(), JsonValue).optional(),
+                  headers: z.record(z.string(), z.string()).optional(),
                 })
                 .strict()
                 .optional(),
@@ -297,8 +298,8 @@ const ModelBase = z.object({
       npm: z.string().optional(),
       api: z.string().optional(),
       shape: z.enum(["responses", "completions"]).optional(),
-      body: z.record(JsonValue).optional(),
-      headers: z.record(z.string()).optional(),
+      body: z.record(z.string(), JsonValue).optional(),
+      headers: z.record(z.string(), z.string()).optional(),
     })
     .strict()
     .optional(),
@@ -306,9 +307,8 @@ const ModelBase = z.object({
 
 function refineModel<
   Output extends z.infer<typeof ModelShape> | z.infer<typeof AuthoredModelShape>,
-  Def extends z.ZodTypeDef,
   Input,
->(schema: z.ZodType<Output, Def, Input>) {
+>(schema: z.ZodType<Output, Input>) {
   return schema
     .refine(
       (data) => {
@@ -389,7 +389,7 @@ export const Provider = z
         1,
         "Please provide a link to the provider documentation where models are listed",
       ),
-    models: z.record(Model),
+    models: z.record(z.string(), Model),
   })
   .strict()
   .refine(
