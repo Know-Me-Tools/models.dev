@@ -7,7 +7,7 @@
   },
   "dependencies": {
     "@tanstack/virtual-core": "^3.14.0",
-    "hono": "4.13.11",
+    "hono": "4.13.16",
     "@models.dev/core": "workspace:*"
   },
   "devDependencies": {
