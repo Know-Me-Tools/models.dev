@@ -19,6 +19,10 @@ output = 64_000
 input = ["text"]
 output = ["text"]
 
+[[weights]]
+label = "Hugging Face"
+url = "https://huggingface.co/CohereLabs/North-Mini-Code-1.0"
+
 [[benchmarks]]
 name = "SWE-Bench Verified"
 score = 67.6

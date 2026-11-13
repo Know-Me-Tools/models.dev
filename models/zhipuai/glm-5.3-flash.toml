@@ -18,3 +18,7 @@ output = 131_072
 [modalities]
 input = ["text", "image", "video", "pdf"]
 output = ["text"]
+
+[[weights]]
+label = "Hugging Face"
+url = "https://huggingface.co/zai-org/GLM-5.3-Flash"

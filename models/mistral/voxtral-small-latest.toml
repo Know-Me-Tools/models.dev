@@ -22,3 +22,7 @@ output = 32_000
 [modalities]
 input = ["text", "audio"]
 output = ["text"]
+
+[[weights]]
+label = "Hugging Face"
+url = "https://huggingface.co/mistralai/Voxtral-Small-24B-2507"

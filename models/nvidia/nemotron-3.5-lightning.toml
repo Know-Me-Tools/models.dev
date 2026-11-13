@@ -17,3 +17,7 @@ output = 262_144
 [modalities]
 input = ["text"]
 output = ["text"]
+
+[[weights]]
+label = "Publisher weights"
+url = "https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-BF16"

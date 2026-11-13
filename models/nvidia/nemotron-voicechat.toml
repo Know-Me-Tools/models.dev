@@ -16,3 +16,7 @@ output = 8_192
 [modalities]
 input = ["text", "audio"]
 output = ["text"]
+
+[[weights]]
+label = "Publisher weights"
+url = "https://huggingface.co/nvidia/NVIDIA-NemotronLabs-VoiceChat-11B"

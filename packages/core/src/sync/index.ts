@@ -1,5 +1,5 @@
 import path from "node:path";
-import { lstat, mkdir, readdir, rm } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readdir, rename, rm } from "node:fs/promises";
 import { mergeDeep } from "remeda";
 import { z } from "zod";
 
@@ -409,14 +409,43 @@ export async function syncProvider<SourceModel>(
     }
   }
 
+  const existingPaths = new Set([...existing.keys(), ...brokenSymlinks]);
+  const staleCasePaths = new Map<string, string>();
+  for (const relativePath of existingPaths) {
+    const folded = relativePath.toLowerCase();
+    if (!desired.has(relativePath) && caseNormalizedDesiredPaths.has(folded)) {
+      staleCasePaths.set(folded, relativePath);
+    }
+  }
+  const replacedCasePaths = new Set<string>();
+
   for (const [relativePath, file] of desired) {
     const filePath = await safeWritePath(provider.modelsDir, relativePath, true);
     const current = existing.get(relativePath);
 
     if (current === undefined) {
+      const stalePath = staleCasePaths.get(relativePath.toLowerCase());
+      const caseAlias = stalePath !== undefined
+        && !existingPaths.has(relativePath)
+        && (await Bun.file(filePath).exists() || await isSymlink(filePath))
+        ? stalePath
+        : undefined;
+      if (caseAlias !== undefined && (
+        provider.deleteMissing === false
+        || options.newOnly
+        || missingReasoning.has(caseAlias.slice(0, -5))
+      )) continue;
+      if (caseAlias !== undefined && path.dirname(caseAlias) !== path.dirname(relativePath)) {
+        throw new Error(`Refusing to change model directory casing during sync: ${caseAlias} → ${relativePath}`);
+      }
+
       files.push({ status: "created", path: filePath });
       if (options.dryRun) {
         console.log(`Would create ${relativePath}`);
+      } else if (caseAlias !== undefined) {
+        const oldPath = await safeWritePath(provider.modelsDir, caseAlias, true);
+        await replaceCaseAlias(oldPath, filePath, file.content);
+        replacedCasePaths.add(caseAlias);
       } else {
         await mkdir(path.dirname(filePath), { recursive: true });
         if (await isSymlink(filePath)) await rm(filePath, { force: true });
@@ -454,7 +483,7 @@ export async function syncProvider<SourceModel>(
   }
 
   const missingLocal: string[] = [];
-  for (const relativePath of new Set([...existing.keys(), ...brokenSymlinks])) {
+  for (const relativePath of existingPaths) {
     if (desired.has(relativePath)) continue;
     if (missingReasoning.has(relativePath.slice(0, -5))) {
       unchanged++;
@@ -476,7 +505,7 @@ export async function syncProvider<SourceModel>(
     files.push({ status: "deleted", path: filePath });
     if (options.dryRun) {
       console.log(`Would remove ${relativePath}`);
-    } else {
+    } else if (!replacedCasePaths.has(relativePath)) {
       await rm(filePath, { force: true });
     }
   }
@@ -670,6 +699,29 @@ async function safeWritePath(root: string, relativePath: string, allowLeafSymlin
     throw new Error(`Refusing to sync through symlink: ${target}`);
   }
   return target;
+}
+
+async function replaceCaseAlias(oldPath: string, newPath: string, content: string) {
+  const staging = await mkdtemp(path.join(path.dirname(oldPath), ".model-sync-"));
+  const replacement = path.join(staging, "replacement");
+  const original = path.join(staging, "original");
+  let restorePending = false;
+  try {
+    await Bun.write(replacement, content);
+    await rename(oldPath, original);
+    restorePending = true;
+    try {
+      await rename(replacement, newPath);
+    } catch (error) {
+      await rename(original, oldPath);
+      restorePending = false;
+      throw error;
+    }
+    restorePending = false;
+  } finally {
+    // If restoring fails, retain the staged original for recovery.
+    if (!restorePending) await rm(staging, { recursive: true, force: true });
+  }
 }
 
 async function readModelMetadata(modelsDir: string) {

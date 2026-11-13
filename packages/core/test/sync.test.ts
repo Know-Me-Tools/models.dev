@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { copyFile, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -2347,14 +2347,53 @@ test("rounds Hyper pricing to six decimal places", () => {
   });
 });
 
-test("inherits Hyper reasoning when API omits reasoning metadata", () => {
-  const model = hyperModel({ id: "llama-3.3-70b-instruct", reasoning: undefined });
+async function withProviderBaseFixture<SourceModel>(
+  provider: SyncProvider<SourceModel>,
+  baseModel: string,
+  run: (root: string, modelsDir: string) => Promise<void>,
+) {
+  const root = await mkdtemp(path.join(tmpdir(), `sync-${provider.id}-base-`));
+  try {
+    const catalogRoot = path.resolve(import.meta.dirname, "..", "..", "..");
+    const modelsDir = path.join(root, provider.modelsDir);
+    const metadataPath = path.join("models", `${baseModel}.toml`);
+    const providerPath = path.join(path.dirname(provider.modelsDir), "provider.toml");
+    await mkdir(modelsDir, { recursive: true });
+    await mkdir(path.dirname(path.join(root, metadataPath)), { recursive: true });
+    await copyFile(path.join(catalogRoot, metadataPath), path.join(root, metadataPath));
+    await copyFile(path.join(catalogRoot, providerPath), path.join(root, providerPath));
+    await run(root, modelsDir);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
 
-  expect(buildHyperModel(model, undefined, "meta/llama-3.3-70b-instruct")).toMatchObject({
-    attachment: false,
+test("inherits Hyper reasoning when API omits reasoning metadata", async () => {
+  const { generateCatalog } = await import("../src/index.js");
+  const { hyper } = await import("../src/sync/providers/hyper.js");
+  const model = hyperModel({ id: "llama-3.3-70b-instruct", reasoning: undefined });
+  const baseModel = "meta/llama-3.3-70b-instruct";
+
+  await withProviderBaseFixture(hyper, baseModel, async (root, modelsDir) => {
+    const result = await syncProvider({ ...hyper, modelsDir, fetchModels: async () => ({ data: [model] }) });
+    expect(result).toMatchObject({ created: 1, updated: 0, deleted: 0 });
+
+    const authored = Bun.TOML.parse(await readFile(path.join(modelsDir, `${model.id}.toml`), "utf8"));
+    expect(authored).toMatchObject({ base_model: baseModel });
+    expect(authored).not.toHaveProperty("attachment");
+    expect(authored).not.toHaveProperty("modalities");
+    expect(authored).not.toHaveProperty("reasoning");
+    expect(authored).not.toHaveProperty("reasoning_options");
+
+    const catalog = await generateCatalog(root);
+    const resolved = catalog.providers.hyper?.models[model.id];
+    expect(resolved).toMatchObject({
+      attachment: false,
+      reasoning: false,
+      modalities: { input: ["text"], output: ["text"] },
+    });
+    expect(resolved).not.toHaveProperty("reasoning_options");
   });
-  expect(buildHyperModel(model, undefined, "meta/llama-3.3-70b-instruct")).not.toHaveProperty("reasoning");
-  expect(buildHyperModel(model, undefined, "meta/llama-3.3-70b-instruct")).not.toHaveProperty("reasoning_options");
 
   expect(buildHyperModel(hyperModel({ id: "minimax-m2.7", reasoning: undefined }), undefined, "minimax/MiniMax-M2.7")).toMatchObject({
     reasoning_options: [],
@@ -2902,14 +2941,35 @@ test("resolves DeepInfra ByteDance IDs to canonical metadata", () => {
     .toBe("bytedance-seed/seed-2.0-code");
 });
 
-test("DeepInfra preserves live modalities for new base models", () => {
-  const model = buildDeepInfraModel(
-    deepInfraModel("Qwen/Qwen3.5-9B", ["multimodal", "input-video"]),
-    undefined,
-    "alibaba/qwen3.5-9b",
-  );
+test("DeepInfra preserves live modalities for new base models", async () => {
+  const { generateCatalog } = await import("../src/index.js");
+  const { deepinfra } = await import("../src/sync/providers/deepinfra.js");
+  const id = "Qwen/Qwen3.5-9B";
+  const baseModel = "alibaba/qwen3.5-9b";
+  const model = deepInfraModel(id, ["multimodal", "input-video"]);
 
-  expect(model).toMatchObject({
+  await withProviderBaseFixture(deepinfra, baseModel, async (root, modelsDir) => {
+    const result = await syncProvider({ ...deepinfra, modelsDir, fetchModels: async () => [model] });
+    expect(result).toMatchObject({ created: 1, updated: 0, deleted: 0 });
+
+    const authored = Bun.TOML.parse(await readFile(path.join(modelsDir, `${id}.toml`), "utf8"));
+    expect(authored).toMatchObject({ base_model: baseModel });
+    expect(authored).not.toHaveProperty("attachment");
+    expect(authored).not.toHaveProperty("modalities");
+
+    const catalog = await generateCatalog(root);
+    expect(catalog.providers.deepinfra?.models[id]).toMatchObject({
+      attachment: true,
+      modalities: { input: ["text", "image", "video"] },
+    });
+  });
+
+  const override = buildDeepInfraModel(
+    deepInfraModel("meta-llama/Llama-3.3-70B-Instruct", ["multimodal", "input-video"]),
+    undefined,
+    "meta/llama-3.3-70b-instruct",
+  );
+  expect(override).toMatchObject({
     attachment: true,
     modalities: { input: ["text", "image", "video"] },
   });
@@ -3784,7 +3844,7 @@ test("syncs the last LLM Gateway case variant without mixing source records", as
     await syncProvider({ ...provider, fetchModels: async () => ({ data: [first] }) });
     const result = await syncProvider(provider);
     expect(result).toMatchObject({ created: 1, updated: 0, deleted: 1 });
-    expect(await Bun.file(path.join(modelsDir, `${first.id}.toml`)).exists()).toBe(false);
+    expect(await readdir(modelsDir)).toEqual([`${last.id}.toml`]);
     const written = Bun.TOML.parse(await readFile(path.join(modelsDir, `${last.id}.toml`), "utf8"));
     expect(written).toMatchObject({
       cost: { input: 0.41, output: 2.5 },
