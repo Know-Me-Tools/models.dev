@@ -3,7 +3,7 @@ import { lstat, mkdir, readdir, rm } from "node:fs/promises";
 import { mergeDeep } from "remeda";
 import { z } from "zod";
 
-import { AuthoredModel, AuthoredModelShape, ModelMetadata } from "../schema.js";
+import { AuthoredModel, AuthoredModelOverlay, AuthoredModelShape, ModelMetadata } from "../schema.js";
 import { openMissingModelIssues } from "./missing-issues.js";
 import { MissingReasoningOptionsError } from "./missing-reasoning-options.js";
 import { ambient } from "./providers/ambient.js";
@@ -48,14 +48,14 @@ const ExistingModelType = AuthoredModelShape.partial()
   })
   .strict();
 
-const ExistingModel = AuthoredModelShape.deepPartial()
+const ExistingModel = AuthoredModelOverlay
   .extend({
     base_model: z.string().optional(),
     base_model_omit: z.array(z.string()).optional(),
   })
   .strict();
 
-const SyncedBaseModel = AuthoredModelShape.deepPartial()
+const SyncedBaseModel = AuthoredModelOverlay
   .extend({
     id: z.string(),
     base_model: z.string(),

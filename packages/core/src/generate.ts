@@ -7,12 +7,11 @@ import {
   Provider,
   Model,
   AuthoredModel,
-  AuthoredModelShape,
+  AuthoredModelOverlay,
   ModelMetadata,
 } from "./schema.js";
 
-const BaseModel = AuthoredModelShape
-  .deepPartial()
+const BaseModel = AuthoredModelOverlay
   .extend({
     id: z.string(),
     base_model: z.string().min(1, "Base model cannot be empty"),

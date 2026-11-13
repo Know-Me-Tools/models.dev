@@ -370,6 +370,21 @@ export const AuthoredModelShape = z
   })
   .strict();
 
+const CostTierOverride = CostTier.partial().extend({
+  tier: CostTier.shape.tier.partial().extend({
+    // Apply the default only when validating the complete model.
+    type: CostTier.shape.tier.shape.type.unwrap().optional(),
+  }).optional(),
+});
+
+export const AuthoredModelOverlay = AuthoredModelShape.partial().extend({
+  modalities: Modalities.partial().optional(),
+  limit: ProviderModelLimit.partial().optional(),
+  cost: AuthoredCost.partial().extend({
+    tiers: z.array(CostTierOverride).optional(),
+  }).optional(),
+});
+
 export const Model = refineModel(ModelShape);
 
 export const AuthoredModel = refineModel(AuthoredModelShape);
